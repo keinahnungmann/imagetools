@@ -1,0 +1,18 @@
+Pseudo(){
+
+	take folder with pictures of many cards laid out in a grid
+	do canny edge
+	do CED to close lines
+	slice image
+	for each card do:
+		
+		slice name, booster, edition
+		CED/EED booster to make readable
+		editionstatus = 1 if edition else 0
+		store name, booster, edition, unedited slice in data structure
+		
+	later:
+		
+		search lowest price on cardmarket
+		auction for lowest price + 0.01
+	
