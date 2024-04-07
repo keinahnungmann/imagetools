@@ -2,6 +2,8 @@ import cv2
 import os
 import numpy as np
 import sys
+sys.path.append('/home/ben/Desktop/imagetools/EED')
+import EED_gradmag
 from utils import four_point_transform
 from deskew import determine_skew
 from skimage.transform import rotate
@@ -14,12 +16,15 @@ import pytesseract
 
 
 if __name__ == "__main__":
+
+    #parse arguments
+    #------------------------------------------------------------------------------#
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", help="path to image")
     parser.add_argument("--tesseract", help="path to tesseract.exe")
     parser.add_argument("--visualize", help="boolean, visualize intermediate steps", action="store_true")
     args = parser.parse_args()
-
+    
     if not os.path.exists(args.image) or not args.image.lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')):
         print("Not a valid image path!")
         exit(0)
@@ -27,7 +32,12 @@ if __name__ == "__main__":
     if not os.path.exists(args.tesseract) or not args.tesseract.lower().endswith(("tesseract")):
         print("Not a valid tesseract executable!")
         exit(0)
-
+    #------------------------------------------------------------------------------#
+    
+    
+    
+    #init
+    #------------------------------------------------------------------------------#
     pytesseract.pytesseract.tesseract_cmd = args.tesseract
 
     f = open("./cardinfo.php", "rb")
@@ -37,106 +47,130 @@ if __name__ == "__main__":
     card_names = [i["name"].upper() for i in card_data["data"]]
     edition = ["1st Edition", ""]
     img = cv2.imread(args.image)
+    H,W,K = img.shape
+    print(W)
+    print(H)
+    
+    output_path = "/home/ben/Desktop/imagetools/cardreader/cards/single"
+    #------------------------------------------------------------------------------#
+
+
 
     #MAIN IMAGE PREPROCESSING
-    #Resizing to 800x800
-    ratio = img.shape[0] / 800.
-    img_resized = cv2.resize(img, (800, 800))
-    coef_y = img.shape[0] / img_resized.shape[0]
-    coef_x = img.shape[1] / img_resized.shape[1]
+    #------------------------------------------------------------------------------#
     
-    #grayscale -> bluring -> canny thresholding -> dilation
+    #Resize, thresh, dilate and extract contours
+    #------------------------------------------------------------------------------#
+    img_resized = cv2.resize(img, (319, 438))
+    blur = cv2.GaussianBlur(img_resized, (1,1), 0)
+    gray_img = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+    thresh = cv2.Canny(gray_img, 50, 100)
+    thresh = cv2.merge((thresh, thresh, thresh))
+    diffused = EED_gradmag.EED(thresh, 0, 0.1, 4, 1, 1, 3, 0.9, 1)
+    diffused = cv2.cvtColor(diffused, cv2.COLOR_BGR2GRAY)
+    #diffused = cv2.cvtColor(thresh, cv2.COLOR_BGR2GRAY)	
+    cv2.imshow("diffused", diffused)
+    cv2.waitKey(0)
+    
+    contours, hierarchy = cv2.findContours(diffused, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    #------------------------------------------------------------------------------#
 
-    gray_img = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray_img, (9,9), 0)
-    thresh = cv2.Canny(blur, 50, 100)
-    output_folder = "/home/ben/Schreibtisch/cardreader"
-    output_path = os.path.join(output_folder, "4x4_thresh.jpg")
-    cv2.imwrite(output_path, thresh)
-    dilated = cv2.dilate(thresh, np.ones((7,7), dtype=np.int8))
 
-    if args.visualize:
-        cv2.imshow("blurred", blur)
-        cv2.imshow("thresholded", thresh)
-        cv2.imshow("dilated", dilated)
-        cv2.waitKey(0)
-
-    #CONTOUR EXTRACTION
-    contours, hierarchy = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    #FINDING 4-POINT CONTOURS BECAUSE THOSE MOST OFTEN RESEMBLE A RECTANGLE / CARD SHAPE
+    #determine all 4 point contours
+    #------------------------------------------------------------------------------#
     tbd = list()
     for c in contours:
         peri = cv2.arcLength(c, True)
         approx = cv2.approxPolyDP(c, 0.05 * peri, True)
         if len(approx) == 4:
             tbd.append(approx)
+    #------------------------------------------------------------------------------#
 
 
+    #determine cards among 4 point contours
+    #------------------------------------------------------------------------------#
     new_contours = list()
-
-    #ITERATING THROUGH 4-POINT CONTOURS AND FINDING THE CARDS AMONG THEM
+    l = 1
     for c in tbd:
+        print("contours found")
+            
         x,y,w,h = cv2.boundingRect(c)
+	#3x3 cards on image of size (638, 877) give the measures:
+	#------------------------------------------------------------------------------#
+        if (w >= (1/6) * 319 and h >= (5/28) * 438): 
+        
+            #crop and save to file
+            #------------------------------------------------------------------------------#
+            card = img[int(8*y) : int(8*(y + h)), int(8*x) : int(8*(x + w))]
 
-        if (w >= 100 and h >= 100): 
-            warped = four_point_transform(img_resized, c.reshape((4,2)))
-            warped_w = warped.shape[0]
-            warped_h = warped.shape[1]
-            #print("Warped w: {}, Warped h: {}, ratio: {}, scaled ratio: {}".format(warped_w, warped_h, warped_h/warped_w, (warped_h*coef_y) / (warped_w*coef_x)))
-            if (1.15 < (warped_h*coef_y) / (warped_w*coef_x) < 1.4):
-                if args.visualize:
-                    cv2.imshow("warped", warped)
-                    cv2.waitKey(0)
+            file_name = args.image.split("/")[-1].split(".")[0] + "." + str(l)
+            l += 1
+            file_path = os.path.join(output_path, file_name + ".jpg")
+            
+            cv2.imwrite(file_path, card)
+            print("image saved")
+            cv2.imshow("saved:", card)
+            cv2.waitKey(0)
+            #------------------------------------------------------------------------------# 
+             
+            #crop card attributes
+            #------------------------------------------------------------------------------#
+            
+            #init
+            warped_h = card.shape[0]		#card width
+            warped_w = card.shape[1]		#card height
+            
+            #name: upper:y = 3mm; lower:y = 10mm; left:x = 4mm; right:x = 48mm
+            #------------------------------------------------------------------------------#
+            name_t = int((3/86) * warped_h)
+            name_b = int((10/86) * warped_h)
+            name_l = int((4/58) * warped_w)
+            name_r = int((45/58) * warped_w)
+            
+            croppedname = card[name_t:name_b, name_l:name_r]
+            print(croppedname.shape)
+            cv2.imshow("name:", croppedname)
+            #name_roi = Image.fromarray(croppedname.astype(np.uint8))
+            #------------------------------------------------------------------------------#
+            
+            #booster: upper:y = 65mm; lower:y = 57mm; left:x = 40mm; right: x = 55mm
+            #------------------------------------------------------------------------------#
+            booster_t = int((61/86) * warped_h)
+            booster_b = int((64/86) * warped_h)
+            booster_l = int((42/59) * warped_w)
+            booster_r = int((53/59) * warped_w)
+            
+            cropped_booster = card[booster_t:booster_b, booster_l:booster_r]
+            cv2.imshow("booster", cropped_booster)
+            #booster_roi = Image.fromarray(cropped_booster.astype(np.uint8))
+            #------------------------------------------------------------------------------#
+            
+            #edition:
+            #edition bottom at bottom:
+            #upper:y = 81mm; lower:y = 84mm; left:x = 10mm; right:x = 32mm 
+            edition_t = int((81/86) * warped_h)
+            edition_b = int((84/86) * warped_h)
+            edition_l = int((10/58) * warped_w)
+            edition_r = int((32/86) * warped_w)
+            
+            cropped_edition = card[edition_t:edition_b, edition_l:edition_r]
+            cv2.imshow("edition", cropped_edition)
+            #editionb_roi = Image.fromarray(cropped_edition.astype(np.uint8))
+            
+            #edition at booster height // "SPEED DUEL"
+            #upper,lower: cf. booster, left, right:7-29mm
+            edition_t = int((57/86) * warped_h)
+            edition_b = int((65/86) * warped_h)
+            edition_l = int((7/58) * warped_w)
+            edition_r = int((29/58) * warped_w)
+            
+            cropped_edition = card[edition_t:edition_b, edition_l:edition_r]
+            cv2.imshow("edition1", cropped_edition)
+            #editiont_roi = Image.fromarray(cropped_edition.astype(np.uint8))
+            #------------------------------------------------------------------------------#
 
-                #DETERMINE ANGLE FOR DESKEWING
-                angle = determine_skew(cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY))
-
-                if angle != 0 and angle is not None:
-                    warped = rotate(warped, angle, resize=True)
-                    
-                #CROP THE TEXT BOX APPROXIMATELLY AND GET THE TEXT
-                croppedname = warped[int(warped.shape[1]//(20)):int(warped.shape[1]//7), int(warped.shape[0]*0.059):int(warped.shape[0]*0.8)]
-                name_roi = cv2.resize(croppedname, (800,70))
-                
-                croppedbooster = warped[int(warped.shape[1]*57/86.0):int(warped.shape[0]*65/86.0),  int(warped.shape[0]*40/59.0):int(warped.shape[0]*55/59.0)] ##
-                booster_roi = cv2.resize(croppedbooster, (800,200))
-                croppededition = warped[int(warped.shape[1]*81/86.0):int(warped.shape[0]*84/86.0),  int(warped.shape[0]*0.17):int(warped.shape[0]*0.4)] ##excellent
-                edition_roi = cv2.resize(croppededition, (800, 200))
-                
-                #enhance scans
-                booster_roi = cv2.cvtColor(booster_roi, cv2.COLOR_BGR2GRAY)
-                
-                
-                         
-                edition_roi = cv2.GaussianBlur(edition_roi, (1,1), 0) #23
-                edition_roi = cv2.erode(edition_roi, np.ones((3,3), dtype=np.int8))
-
-                if args.visualize:
-                    cv2.imshow("extracted name", name_roi)
-                    cv2.imshow("extracted booster", booster_roi)
-                    cv2.imshow("extracted edition", edition_roi)
-                    cv2.waitKey(0)
-
-                name_roi = Image.fromarray((name_roi).astype(np.uint8))
-                booster_roi = Image.fromarray((booster_roi).astype(np.uint8))
-                edition_roi = Image.fromarray((edition_roi).astype(np.uint8))
-
-                name = pytesseract.image_to_string(name_roi, config="--psm 7")
-                print(name)
-                booster = pytesseract.image_to_string(booster_roi, config="--psm 7")
-                print(booster)
-                edition = pytesseract.image_to_string(edition_roi, config="--psm 7")
-                print(edition)
-
-                #IF TEXT HAS BEEN FOUND, MEMORIZE THE CONTOUR AND THE TEXT
-                name = difflib.get_close_matches(name.upper(), name, n=1)
-                print(name)
-                booster  = difflib.get_close_matches(booster.upper(), booster, n=1)
-                print(booster)
-                edition = difflib.get_close_matches(edition.upper(), edition, n=1)
             
 
 
 
-    
+
