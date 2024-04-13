@@ -37,24 +37,31 @@ def four_point_transform(image, pts):
 
 # -----------------------------------------------------------------------------
 
-def cropminarearect(image, c):
-    # init
-    rect = cv2.minAreaRect(c)
+#Takes card image, returns card image without boundary
+#Loaded image size will always be approx. 707x1031
+def remove_boundary(image):
     
-    # rotate image to that minarearect is axes-aligned
-    # -----------------------------------------------------------------------------
-
-    angle = rect[2]
-    matrix = cv2.getRotationMatrix2D(rect[0], angle, 1)
-    
-    # rotate image
-    img_rot = cv2.warpAffine(image, matrix, (3508, 2552))
-    
-    # rotate contour
-    c_hom = np.hstack((c.reshape(4, 2), np.ones((4, 1), dtype=np.uint64)))
-    c_rot = np.dot(matrix, c_hom.T).T
-    
-    # then crop boundingrect
-    x, y, w, h = cv2.boundingRect(c_rot)
-    return image[y: y+h, x: x+w]
+    thresh = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 51, 2)
+    cv2.imshow("thresh", thresh)
+    cv2.waitKey(0)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    #find desired contour
+    for c in contours:
+        
+        rect = cv2.minAreaRect(c)
+        w,h = rect[1]
+        
+        #filter small contours
+        if w < 680 and w > 500 and h < 1000 and h > 800:
+        
+            #filter by aspect ratio
+            aspect_ratio = 82/55
+            aspect = max(w,h)/min(w,h)
+            
+            if abs(aspect - aspect_ratio) < 0.05:
+            
+                pts = cv2.boxPoints(rect)
+                card = four_point_transform(image, pts)
+                card = cv2.rotate(card, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                return card
 

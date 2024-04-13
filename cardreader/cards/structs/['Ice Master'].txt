@@ -1,7 +1,0 @@
-Name: ['Ice Master']
-Booster: []
-Edition: []
-Condition: 
-Language: Deutsch
-Number: 1
-Image: /home/ben/Desktop/imagetools/cardreader/cards/single/3-29.jpg

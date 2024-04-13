@@ -2,6 +2,10 @@ import cv2
 import pytesseract
 import difflib
 import os
+import sys
+sys.path.append("/home/ben/Desktop/imagetools/EED")
+from EED_gradmag import EED
+from utils import remove_boundary
 
 
 class YuGiOhCard:
@@ -10,10 +14,11 @@ class YuGiOhCard:
     
         self.image_path = image_path
         self.image = cv2.imread(image_path)
-        self.w = self.image.shape[1]
-        self.h = self.image.shape[0]
+        self.name = ""
+        self.booster = ""
+        self.edition = ""
         self.condition = ""
-        self.number	 = 1
+        self.number = 1
         self.language = "Deutsch"
         
         
@@ -63,10 +68,10 @@ class YuGiOhCard:
     def set_name(self, names): 
     
         #------------------------------------------------------------------------------#
-        x = [3/86, 4/58]
+        x = [2/82, 2/55]
         
         
-        y = [14/86, 45/58]
+        y = [8/82, 47/55]
         
         self.name = self.read_area(x, y, names)
         #------------------------------------------------------------------------------#
@@ -75,8 +80,8 @@ class YuGiOhCard:
     def set_booster(self, boosters): 
     
         #------------------------------------------------------------------------------#
-        x = [61/86, 38/58]
-        y = [67/86, 53/58]
+        x = [59/82, 41/55]
+        y = [62/82, 45/55]
         
         self.booster = self.read_area(x, y, boosters)
         #------------------------------------------------------------------------------#
@@ -95,16 +100,16 @@ class YuGiOhCard:
     def get_edition1(self, editions): 
         
         #------------------------------------------------------------------------------#
-        x = [61/86, 7/58]
-        y = [67/86, 29/58]
+        x = [59/82, 5/55]
+        y = [62/82, 26/55]
         
         return self.read_area(x, y, editions)
     
     def get_edition2(self, editions):
     
         #------------------------------------------------------------------------------#
-        x = [81/86, 10/58]
-        y = [84/86, 32/58]
+        x = [80/82, 9/55]
+        y = [82/82, 29/55]
         
         return self.read_area(x, y, editions)
         
@@ -115,19 +120,21 @@ class YuGiOhCard:
     def read_area(self,x,y,data): 
     
         #------------------------------------------------------------------------------#
-        top = int(x[0]*self.h)
-        bottom = int(y[0]*self.h)
-        left = int(x[1]*self.w)
-        right = int(y[1]*self.w)
-        
-        roi = self.image[top : bottom, left : right]
-        cv2.imshow("roi", roi)
+        gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        inner = remove_boundary(gray)
+        cv2.imshow("inner", inner)
         cv2.waitKey(0)
+        h,w = inner.shape
         
-        print(data)
-        text = pytesseract.image_to_string(roi, config=r'--oem 1 --psm 6')
+        top = int(x[0]*h)
+        bottom = int(y[0]*h)
+        left = int(x[1]*w)
+        right = int(y[1]*w)
+        
+        roi = inner[top : bottom, left : right]
+        #roi = EED(roi, 0, 32.0, 4.0, 1, 1, 3, 0.7, 1)
+        text = pytesseract.image_to_string(roi, config=r'--oem 1 --psm 6').lower()
         text = difflib.get_close_matches(text, data, n=1)
-        print(text)
         #------------------------------------------------------------------------------#
         
         return text

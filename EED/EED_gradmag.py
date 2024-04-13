@@ -59,7 +59,7 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
 
         # compute quantile of generalized smoothed gradient magnitude in first iteration
         # ---------------------------------------------------------------------#
-        if z == 0:
+        if z < 0:
             # add outer products
             outer = np.zeros((3, h, w))
             for k in range(K):
@@ -107,7 +107,7 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
 
                 # compute diffusion tensor
                 transform = np.vstack((v1, v2))
-                diag = np.vstack(([weickert, 0.0], [0.0, 1.0]))
+                diag = np.vstack(([0.0, 0.0], [0.0, 1.0]))
                 diff = np.dot(transform.T, np.dot(diag, transform))
 
                 # store in array
@@ -242,6 +242,7 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
             data.append(mm)
 
         A = sp.csr_matrix((data, (row_indices, col_indices)))
+        print("System matrix built")
         # ---------------------------------------------------------------------#
 
         # perform one diffusion step
@@ -254,13 +255,13 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
             if alpha > 0:
                 matrix = I - alpha / (tau + alpha) * tau * A
                 vector = 1 / (alpha + tau) * (alpha * RGB[k] + tau * RGB_image[k])
-                RGB[k] = sp.linalg.cg(matrix, vectorize(vector), maxiter=10000, rtol=10e-12)[0]
+                RGB[k] = sp.linalg.cg(matrix, vectorize(vector), maxiter=1000, rtol=10e-3)[0]
             # ---------------------------------------------------------------------#
 
             # implicit step without reaction term
             else:
                 matrix = I - tau * A
-                RGB[k] = sp.linalg.cg(matrix, vectorize(RGB[k]), maxiter=10000, rtol=10e-12)[0]
+                RGB[k] = sp.linalg.cg(matrix, vectorize(RGB[k]), maxiter=1000, rtol=10e-3)[0]
             # ---------------------------------------------------------------------#
    
             # rescale intensity, reshape
