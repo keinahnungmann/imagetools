@@ -10,13 +10,20 @@ def vectorize(image):
     vector = [image[j, :] for j in range(image.shape[0])]
     vector = np.concatenate(vector)
     vector = vector.reshape(-1, 1)
+<<<<<<< HEAD
     
     return vector
 
 
 def contrast(image, quantile):
+=======
+    return vector
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
 
+
+def contrast(image, quantile):
     vec = sorted(image.flatten())
+<<<<<<< HEAD
     i = int(quantile * len(vec))
     if i == 0:
     	i = 1
@@ -34,6 +41,17 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
     print(K)
     curr = image  # iterators
     C = 1
+=======
+    C = int(quantile * len(vec))
+    return C
+
+
+def EED(image, plicit, alpha, tau, h1, h2, sigma, rho, quantile, iterations):
+    # init
+    h, w, K = image.shape  # image dimension
+    RGB_image = list(cv2.split(image))  # original image channels
+    curr = image  # iterators
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
 
     # main image processing
     for z in range(iterations):
@@ -42,6 +60,12 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
         # reduces 'RGB' to one channel if image is grayscale
         # ---------------------------------------------------------------------#
         RGB = list(cv2.split(curr))
+<<<<<<< HEAD
+=======
+        if np.linalg.norm(cv2.absdiff(RGB[1], RGB[2]) + cv2.absdiff(RGB[0], RGB[1])) == 0:
+            RGB = [RGB[0]]
+            K = 1
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
         # ---------------------------------------------------------------------#
 
         # compute regularized gradient with natural boundary conditions
@@ -59,7 +83,11 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
 
         # compute quantile of generalized smoothed gradient magnitude in first iteration
         # ---------------------------------------------------------------------#
+<<<<<<< HEAD
         if z < 0:
+=======
+        if z == 0:
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
             # add outer products
             outer = np.zeros((3, h, w))
             for k in range(K):
@@ -101,19 +129,38 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
 
                 # compute diffusivity:
                 edger = matrix[0, 0] + matrix[1, 1]
+<<<<<<< HEAD
                 perona = 0.0
                 #1 / (1 + edger ** 2 / C ** 2)
+=======
+                perona = 1 / (1 + edger ** 2 / C ** 2)
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
                 weickert = 1 if edger == 0 else np.exp(-3.31488 / ((edger / C) ** 8))
 
                 # compute diffusion tensor
                 transform = np.vstack((v1, v2))
+<<<<<<< HEAD
                 diag = np.vstack(([0.0, 0.0], [0.0, 1.0]))
+=======
+                diag = np.vstack(([weickert, 0.0], [0.0, 1]))
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
                 diff = np.dot(transform.T, np.dot(diag, transform))
 
                 # store in array
                 D[j, i] = [diff[0, 0], diff[1, 0], diff[1, 1]]
         # ---------------------------------------------------------------------#
 
+<<<<<<< HEAD
+=======
+        # diffuse each channel separately
+        # ---------------------------------------------------------------------#
+        # Construct sparse system matrix
+        # compute parameter beta = (1-2*alpha)sgn(J[j,i])alpha = 13/32
+        #   beta = np.zeros((h,w))
+        #  for i in range(w):
+        #     for j in range(h):
+        #        beta[j,i] = (19/32)*(1 if outer([1][j,i] > 0 else -1 if outer[1][j,i] < 0 else 0.0)
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
 
         # build system matrix
         # ---------------------------------------------------------------------#
@@ -242,7 +289,10 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
             data.append(mm)
 
         A = sp.csr_matrix((data, (row_indices, col_indices)))
+<<<<<<< HEAD
         print("System matrix built")
+=======
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
         # ---------------------------------------------------------------------#
 
         # perform one diffusion step
@@ -255,21 +305,36 @@ def EED(image, plicit, alpha, tau, h1, h2, sigma, quantile, iterations):
             if alpha > 0:
                 matrix = I - alpha / (tau + alpha) * tau * A
                 vector = 1 / (alpha + tau) * (alpha * RGB[k] + tau * RGB_image[k])
+<<<<<<< HEAD
                 RGB[k] = sp.linalg.cg(matrix, vectorize(vector), maxiter=1000, rtol=10e-3)[0]
+=======
+                RGB[k] = sp.linalg.cg(matrix, vectorize(vector), maxiter=10000, rtol=10e-12)[0]
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
             # ---------------------------------------------------------------------#
 
             # implicit step without reaction term
             else:
                 matrix = I - tau * A
+<<<<<<< HEAD
                 RGB[k] = sp.linalg.cg(matrix, vectorize(RGB[k]), maxiter=1000, rtol=10e-3)[0]
             # ---------------------------------------------------------------------#
    
+=======
+                RGB[k] = sp.linalg.cg(matrix, vectorize(RGB[k]), maxiter=10000, rtol=10e-12)[0]
+            # ---------------------------------------------------------------------#
+
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
             # rescale intensity, reshape
             RGB[k] = RGB[k].astype(np.uint8).reshape(h, w)
             # ---------------------------------------------------------------------#
 
+<<<<<<< HEAD
         curr = cv2.merge(RGB) if K > 1 else cv2.cvtColor(RGB[0], cv2.COLOR_GRAY2BGR)
         
+=======
+        curr = cv2.merge(RGB) if K > 1 else cv2.merge((RGB[0], RGB[0], RGB[0]))
+
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
     return curr
 
 
@@ -306,7 +371,15 @@ if __name__ == "__main__":
         alpha = float(sys.argv[4])
         tau = float(sys.argv[3 + 2])
         sigma = int(sys.argv[3 + 3])
+<<<<<<< HEAD
         quantile = float(sys.argv[7])
         iterations = int(sys.argv[8])
 
         main(input_path, output_folder, plicit, alpha, tau, 1, 1, sigma, quantile, iterations)
+=======
+        rho = int(sys.argv[7])
+        quantile = float(sys.argv[8])
+        iterations = int(sys.argv[9])
+
+        main(input_path, output_folder, plicit, alpha, tau, 1, 1, sigma, rho, quantile, iterations)
+>>>>>>> 4ee5c2370660d07c5c3286c7e17ceb6451bec0a6
